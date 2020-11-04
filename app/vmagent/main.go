@@ -18,6 +18,7 @@ import (
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmagent/prometheusimport"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmagent/promremotewrite"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmagent/remotewrite"
+	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmagent/statsd"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmagent/vmimport"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/buildinfo"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/cgroup"
@@ -27,6 +28,7 @@ import (
 	influxserver "github.com/VictoriaMetrics/VictoriaMetrics/lib/ingestserver/influx"
 	opentsdbserver "github.com/VictoriaMetrics/VictoriaMetrics/lib/ingestserver/opentsdb"
 	opentsdbhttpserver "github.com/VictoriaMetrics/VictoriaMetrics/lib/ingestserver/opentsdbhttp"
+	statsdserver "github.com/VictoriaMetrics/VictoriaMetrics/lib/ingestserver/statsd"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/logger"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/procutil"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/promscrape"
@@ -42,6 +44,7 @@ var (
 	influxListenAddr = flag.String("influxListenAddr", "", "TCP and UDP address to listen for Influx line protocol data. Usually :8189 must be set. Doesn't work if empty. "+
 		"This flag isn't needed when ingesting data over HTTP - just send it to `http://<vmagent>:8429/write`")
 	graphiteListenAddr = flag.String("graphiteListenAddr", "", "TCP and UDP address to listen for Graphite plaintext data. Usually :2003 must be set. Doesn't work if empty")
+	statsdListenAddr   = flag.String("statsdListenAddr", "", "TCP and UDP address to listen for Statsd metrics. Usually :8126 must be set. Doesn't work if empty")
 	opentsdbListenAddr = flag.String("opentsdbListenAddr", "", "TCP and UDP address to listen for OpentTSDB metrics. "+
 		"Telnet put messages and HTTP /api/put messages are simultaneously served on TCP port. "+
 		"Usually :4242 must be set. Doesn't work if empty")
@@ -53,6 +56,7 @@ var (
 var (
 	influxServer       *influxserver.Server
 	graphiteServer     *graphiteserver.Server
+	statsdServer       *statsdserver.Server
 	opentsdbServer     *opentsdbserver.Server
 	opentsdbhttpServer *opentsdbhttpserver.Server
 )
@@ -98,6 +102,9 @@ func main() {
 	if len(*opentsdbHTTPListenAddr) > 0 {
 		opentsdbhttpServer = opentsdbhttpserver.MustStart(*opentsdbHTTPListenAddr, opentsdbhttp.InsertHandler)
 	}
+	if len(*statsdListenAddr) > 0 {
+		statsdServer = statsdserver.MustStart(*statsdListenAddr, statsd.InsertHandler)
+	}
 
 	promscrape.Init(remotewrite.Push)
 
@@ -131,6 +138,9 @@ func main() {
 	}
 	if len(*opentsdbHTTPListenAddr) > 0 {
 		opentsdbhttpServer.MustStop()
+	}
+	if len(*statsdListenAddr) > 0 {
+		statsdServer.MustStop()
 	}
 	common.StopUnmarshalWorkers()
 	remotewrite.Stop()
