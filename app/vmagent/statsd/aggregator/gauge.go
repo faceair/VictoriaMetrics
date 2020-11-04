@@ -40,21 +40,15 @@ func (g *Gauge) Reset() {
 	g.mu.Unlock()
 }
 
-func (g *Gauge) isStaleness(t int) bool {
-	g.mu.Lock()
-	isStaleness := g.staleness > t
-	g.mu.Unlock()
-	return isStaleness
-}
-
 // marshalTo marshals fc with the given prefix to w.
-func (g *Gauge) marshalTo(ctx *common.PushCtx, _ string, labels []prompbmarshal.Label) {
+func (g *Gauge) marshalTo(ctx *common.PushCtx, _ string, labels []prompbmarshal.Label) (staleness int) {
 	g.mu.Lock()
-	if g.staleness > 0 {
+	g.staleness++
+	staleness = g.staleness
+	if staleness > 1 {
 		g.mu.Unlock()
 		return
 	}
-	g.staleness++
 	g.mu.Unlock()
 
 	ctx.Samples = append(ctx.Samples, prompbmarshal.Sample{
@@ -66,4 +60,6 @@ func (g *Gauge) marshalTo(ctx *common.PushCtx, _ string, labels []prompbmarshal.
 		Samples: ctx.Samples[len(ctx.Samples)-1:],
 	})
 	g.Reset()
+
+	return
 }

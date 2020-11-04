@@ -207,21 +207,15 @@ var (
 	bucketRangesOnce sync.Once
 )
 
-func (h *Histogram) isStaleness(t int) bool {
-	h.mu.Lock()
-	isStaleness := h.staleness > t
-	h.mu.Unlock()
-	return isStaleness
-}
-
 // marshalTo marshals fc with the given prefix to w.
-func (h *Histogram) marshalTo(ctx *common.PushCtx, name string, labels []prompbmarshal.Label) {
+func (h *Histogram) marshalTo(ctx *common.PushCtx, name string, labels []prompbmarshal.Label) (staleness int) {
 	h.mu.Lock()
-	if h.staleness > 0 {
+	h.staleness++
+	staleness = h.staleness
+	if staleness > 1 {
 		h.mu.Unlock()
 		return
 	}
-	h.staleness++
 	h.mu.Unlock()
 
 	timestamp := int64(fasttime.UnixTimestamp()) * 1e3
@@ -281,6 +275,8 @@ func (h *Histogram) marshalTo(ctx *common.PushCtx, name string, labels []prompbm
 	})
 
 	h.Reset()
+
+	return
 }
 
 func (h *Histogram) getSum() float64 {

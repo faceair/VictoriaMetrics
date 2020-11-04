@@ -40,21 +40,15 @@ func (fc *FloatCounter) Reset() {
 	fc.mu.Unlock()
 }
 
-func (fc *FloatCounter) isStaleness(t int) bool {
-	fc.mu.Lock()
-	isStaleness := fc.staleness > t
-	fc.mu.Unlock()
-	return isStaleness
-}
-
 // marshalTo marshals fc with the given prefix to w.
-func (fc *FloatCounter) marshalTo(ctx *common.PushCtx, _ string, labels []prompbmarshal.Label) {
+func (fc *FloatCounter) marshalTo(ctx *common.PushCtx, _ string, labels []prompbmarshal.Label) (staleness int) {
 	fc.mu.Lock()
-	if fc.staleness > 0 {
+	fc.staleness++
+	staleness = fc.staleness
+	if staleness > 1 {
 		fc.mu.Unlock()
 		return
 	}
-	fc.staleness++
 	fc.mu.Unlock()
 
 	ctx.Samples = append(ctx.Samples, prompbmarshal.Sample{
@@ -66,4 +60,6 @@ func (fc *FloatCounter) marshalTo(ctx *common.PushCtx, _ string, labels []prompb
 		Samples: ctx.Samples[len(ctx.Samples)-1:],
 	})
 	fc.Reset()
+
+	return
 }

@@ -18,14 +18,14 @@ var (
 )
 
 type namedMetric struct {
+	key    string
 	name   string
 	labels []prompbmarshal.Label
 	metric metric
 }
 
 type metric interface {
-	isStaleness(t int) bool
-	marshalTo(ctx *common.PushCtx, name string, labels []prompbmarshal.Label)
+	marshalTo(ctx *common.PushCtx, name string, labels []prompbmarshal.Label) int
 }
 
 // Set is a set of metrics.
@@ -42,8 +42,8 @@ type Set struct {
 	buf       []*namedMetric
 }
 
-// NewSet creates new set of metrics.
-func NewSet(window time.Duration, quantiles []float64) *Set {
+// newSet creates new set of metrics.
+func newSet(window time.Duration, quantiles []float64) *Set {
 	return &Set{
 		metrics:   make(map[string]*namedMetric),
 		window:    window,
@@ -72,7 +72,7 @@ func (s *Set) Insert(key string, row *parser.Row) {
 	}
 }
 
-func (s *Set) Push() {
+func (s *Set) Flush() {
 	s.mu.Lock()
 	for _, sm := range s.summaries {
 		sm.updateQuantiles()
@@ -87,7 +87,15 @@ func (s *Set) Push() {
 	defer common.PutPushCtx(ctx)
 
 	for _, nm := range s.buf {
-		nm.metric.marshalTo(ctx, nm.name, nm.labels)
+		if staleness := nm.metric.marshalTo(ctx, nm.name, nm.labels); staleness > 6 {
+			s.mu.Lock()
+			delete(s.metrics, nm.key)
+
+			if sm, ok := nm.metric.(*Summary); ok {
+				unregisterSummary(sm)
+			}
+			s.mu.Unlock()
+		}
 	}
 	if len(ctx.WriteRequest.Timeseries) == 0 {
 		return
@@ -95,21 +103,6 @@ func (s *Set) Push() {
 	remotewrite.Push(&ctx.WriteRequest)
 	rowsInserted.Add(len(s.buf))
 	rowsPerInsert.Update(float64(len(s.buf)))
-}
-
-func (s *Set) CleanUp(t int) {
-	s.mu.Lock()
-	for key, nm := range s.metrics {
-		if nm.metric.isStaleness(t) {
-			delete(s.metrics, key)
-
-			if sm, ok := nm.metric.(*Summary); ok {
-				unregisterSummary(sm)
-			}
-		}
-	}
-	s.mu.Unlock()
-
 }
 
 // GetOrCreateHistogram returns registered histogram in s with the given name
@@ -136,6 +129,7 @@ func (s *Set) GetOrCreateHistogram(key string, row *parser.Row) *Histogram {
 			panic(fmt.Errorf("BUG: invalid metric name %q: %s", name, err))
 		}
 		nmNew := &namedMetric{
+			key:    key,
 			name:   name,
 			labels: genRowLabels(row, false),
 			metric: &Histogram{},
@@ -179,6 +173,7 @@ func (s *Set) GetOrCreateFloatCounter(key string, row *parser.Row) *FloatCounter
 			panic(fmt.Errorf("BUG: invalid metric name %q: %s", name, err))
 		}
 		nmNew := &namedMetric{
+			key:    key,
 			name:   name,
 			labels: genRowLabels(row, true),
 			metric: &FloatCounter{},
@@ -222,6 +217,7 @@ func (s *Set) GetOrCreateGauge(key string, row *parser.Row) *Gauge {
 			panic(fmt.Errorf("BUG: invalid metric name %q: %s", name, err))
 		}
 		nmNew := &namedMetric{
+			key:    key,
 			name:   name,
 			labels: genRowLabels(row, true),
 			metric: &Gauge{},
@@ -284,6 +280,7 @@ func (s *Set) GetOrCreateSummaryExt(key string, row *parser.Row, window time.Dur
 		}
 		sm := newSummary(window, quantiles)
 		nmNew := &namedMetric{
+			key:    key,
 			name:   name,
 			labels: genRowLabels(row, false),
 			metric: sm,
@@ -327,6 +324,7 @@ func (s *Set) registerSummaryQuantilesLocked(key, name string, labels []prompbma
 				Value: fmt.Sprintf("%g", q),
 			})
 			nm = &namedMetric{
+				key:    key,
 				name:   name,
 				labels: quantileLabels,
 				metric: qv,

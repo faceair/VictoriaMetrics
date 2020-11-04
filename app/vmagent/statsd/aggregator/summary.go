@@ -79,26 +79,21 @@ func (sm *Summary) UpdateDuration(startTime time.Time) {
 	sm.Update(d)
 }
 
-func (sm *Summary) isStaleness(t int) bool {
+func (sm *Summary) marshalTo(ctx *common.PushCtx, name string, labels []prompbmarshal.Label) (staleness int) {
 	sm.mu.Lock()
-	isStaleness := sm.staleness > t
-	sm.mu.Unlock()
-	return isStaleness
-}
-
-func (sm *Summary) marshalTo(ctx *common.PushCtx, name string, labels []prompbmarshal.Label) {
-	// Marshal only *_sum and *_count values.
-	// Quantile values should be already updated by the caller via sm.updateQuantiles() call.
-	// sm.quantileValues will be marshaled later via quantileValue.marshalTo.
-	sm.mu.Lock()
-	if sm.staleness > 0 {
+	sm.staleness++
+	staleness = sm.staleness
+	if staleness > 1 {
 		sm.mu.Unlock()
 		return
 	}
-	sm.staleness++
 
+	// Marshal only *_sum and *_count values.
+	// Quantile values should be already updated by the caller via sm.updateQuantiles() call.
+	// sm.quantileValues will be marshaled later via quantileValue.marshalTo.
 	sum := sm.sum
 	count := sm.count
+
 	sm.mu.Unlock()
 
 	if count > 0 {
@@ -132,6 +127,8 @@ func (sm *Summary) marshalTo(ctx *common.PushCtx, name string, labels []prompbma
 	}
 
 	sm.Reset()
+
+	return
 }
 
 func (sm *Summary) updateQuantiles() {
@@ -158,15 +155,9 @@ type quantileValue struct {
 	idx int
 }
 
-func (qv *quantileValue) isStaleness(t int) bool {
+func (qv *quantileValue) marshalTo(ctx *common.PushCtx, name string, labels []prompbmarshal.Label) (staleness int) {
 	qv.sm.mu.Lock()
-	isStaleness := qv.sm.staleness > t
-	qv.sm.mu.Unlock()
-	return isStaleness
-}
-
-func (qv *quantileValue) marshalTo(ctx *common.PushCtx, name string, labels []prompbmarshal.Label) {
-	qv.sm.mu.Lock()
+	staleness = qv.sm.staleness
 	v := qv.sm.quantileValues[qv.idx]
 	qv.sm.mu.Unlock()
 
@@ -182,6 +173,8 @@ func (qv *quantileValue) marshalTo(ctx *common.PushCtx, name string, labels []pr
 			Samples: ctx.Samples[len(ctx.Samples)-1:],
 		})
 	}
+
+	return
 }
 
 func registerSummaryLocked(sm *Summary) {

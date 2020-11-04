@@ -4,6 +4,7 @@ import (
 	"io"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmagent/statsd/aggregator"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
@@ -12,6 +13,8 @@ import (
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/storage"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/writeconcurrencylimiter"
 )
+
+var defaultSet = aggregator.New(64, time.Second*10, []float64{0.5, 0.9, 0.97, 0.99, 1})
 
 // InsertHandler processes remote write for statsd plaintext protocol.
 //
@@ -35,7 +38,7 @@ func insertRows(rows []parser.Row) error {
 		}
 		ctx.metricNameBuf = storage.MarshalMetricNameRaw(ctx.metricNameBuf[:0], ctx.labels)
 
-		aggregator.Insert(string(ctx.metricNameBuf), *r)
+		defaultSet.Insert(string(ctx.metricNameBuf), *r)
 	}
 	return nil
 }

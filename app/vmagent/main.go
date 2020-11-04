@@ -56,9 +56,9 @@ var (
 var (
 	influxServer       *influxserver.Server
 	graphiteServer     *graphiteserver.Server
-	statsdServer       *statsdserver.Server
 	opentsdbServer     *opentsdbserver.Server
 	opentsdbhttpServer *opentsdbhttpserver.Server
+	statsdServer       *statsdserver.Server
 )
 
 func main() {
