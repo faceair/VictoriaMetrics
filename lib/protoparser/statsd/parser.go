@@ -113,10 +113,17 @@ func (r *Row) unmarshal(s string, tagsPool []Tag) ([]Tag, error) {
 	r.SampleRate = 1.0
 	var optionalField string
 	for tail != "" {
-		n = strings.IndexByte(tail, '|')
+		for {
+			n = strings.IndexByte(tail, '#')
+			if n > 0 {
+				break
+			}
+			n = strings.IndexByte(tail, '@')
+			break
+		}
 		if n > 0 {
 			optionalField = tail[:n]
-			tail = tail[n+1:]
+			tail = tail[n:]
 		} else {
 			optionalField = tail
 			tail = ""
@@ -125,14 +132,14 @@ func (r *Row) unmarshal(s string, tagsPool []Tag) ([]Tag, error) {
 		switch {
 		case strings.HasPrefix(optionalField, "#"):
 			tagsStart := len(tagsPool)
-			tagsPool, err := unmarshalTags(tagsPool, optionalField[n+1:])
+			tagsPool, err := unmarshalTags(tagsPool, optionalField[1:])
 			if err != nil {
 				return tagsPool, fmt.Errorf("cannot umarshal tags from %q: %w", optionalField, err)
 			}
 			tags := tagsPool[tagsStart:]
 			r.Tags = tags[:len(tags):len(tags)]
 		case strings.HasPrefix(optionalField, "@"):
-			v, err := fastfloat.Parse(optionalField[n+1:])
+			v, err := fastfloat.Parse(optionalField[1:])
 			if err != nil {
 				return tagsPool, fmt.Errorf("cannot unmarshal sample rate from %q: %w", optionalField, err)
 			}

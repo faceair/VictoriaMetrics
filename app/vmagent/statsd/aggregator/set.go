@@ -55,7 +55,7 @@ func (s *Set) Insert(key string, row *parser.Row) {
 	switch row.Type {
 	case parser.CounterType:
 		if counter := s.GetOrCreateFloatCounter(key, row); counter != nil {
-			counter.Add(row.Value)
+			counter.Add(row.Value * (1 / row.SampleRate))
 		}
 	case parser.GaugeType:
 		if gauge := s.GetOrCreateGauge(key, row); gauge != nil {
@@ -102,6 +102,10 @@ func (s *Set) CleanUp(t int) {
 	for key, nm := range s.metrics {
 		if nm.metric.isStaleness(t) {
 			delete(s.metrics, key)
+
+			if sm, ok := nm.metric.(*Summary); ok {
+				unregisterSummary(sm)
+			}
 		}
 	}
 	s.mu.Unlock()
