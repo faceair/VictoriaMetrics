@@ -12,7 +12,7 @@ import (
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/writeconcurrencylimiter"
 )
 
-var defaultSet = aggregator.New(64, time.Second*10, []float64{0.5, 0.9, 0.97, 0.99, 1})
+var defaultSet = aggregator.New(64, time.Second*10, []float64{0.5, 0.75, 0.95, 0.99, 0.999})
 
 // InsertHandler processes remote write for statsd plaintext protocol.
 //
