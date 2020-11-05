@@ -90,10 +90,6 @@ func (s *Set) Flush() {
 		if staleness := nm.metric.marshalTo(ctx, nm.name, nm.labels); staleness > 6 {
 			s.mu.Lock()
 			delete(s.metrics, nm.key)
-
-			if sm, ok := nm.metric.(*Summary); ok {
-				unregisterSummary(sm)
-			}
 			s.mu.Unlock()
 		}
 	}
@@ -290,7 +286,6 @@ func (s *Set) GetOrCreateSummaryExt(key string, row *parser.Row, window time.Dur
 		if nm == nil {
 			nm = nmNew
 			s.metrics[key] = nm
-			registerSummaryLocked(sm)
 			labels := genRowLabels(row, true)
 			s.registerSummaryQuantilesLocked(key, name, labels, sm)
 		}
