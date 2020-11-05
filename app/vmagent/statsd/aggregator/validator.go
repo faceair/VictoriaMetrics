@@ -1,84 +1,21 @@
 package aggregator
 
-import (
-	"fmt"
-	"regexp"
-	"strings"
-)
-
-func validateMetric(s string) error {
-	if len(s) == 0 {
-		return fmt.Errorf("metric cannot be empty")
+func validateMetric(s string) bool {
+	if s == "" {
+		return false
 	}
-	n := strings.IndexByte(s, '{')
-	if n < 0 {
-		return validateIdent(s)
+	for i, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z':
+		case r >= 'A' && r <= 'Z':
+		case r >= '0' && r <= '9':
+			if i == 0 {
+				return false
+			}
+		case r == '_' || r == ':':
+		default:
+			return false
+		}
 	}
-	ident := s[:n]
-	s = s[n+1:]
-	if err := validateIdent(ident); err != nil {
-		return err
-	}
-	if len(s) == 0 || s[len(s)-1] != '}' {
-		return fmt.Errorf("missing closing curly brace at the end of %q", ident)
-	}
-	return validateTags(s[:len(s)-1])
+	return true
 }
-
-func validateTags(s string) error {
-	if len(s) == 0 {
-		return nil
-	}
-	for {
-		n := strings.IndexByte(s, '=')
-		if n < 0 {
-			return fmt.Errorf("missing `=` after %q", s)
-		}
-		ident := s[:n]
-		s = s[n+1:]
-		if err := validateIdent(ident); err != nil {
-			return err
-		}
-		if len(s) == 0 || s[0] != '"' {
-			return fmt.Errorf("missing starting `\"` for %q value; tail=%q", ident, s)
-		}
-		s = s[1:]
-	again:
-		n = strings.IndexByte(s, '"')
-		if n < 0 {
-			return fmt.Errorf("missing trailing `\"` for %q value; tail=%q", ident, s)
-		}
-		m := n
-		for m > 0 && s[m-1] == '\\' {
-			m--
-		}
-		if (n-m)%2 == 1 {
-			s = s[n+1:]
-			goto again
-		}
-		s = s[n+1:]
-		if len(s) == 0 {
-			return nil
-		}
-		if !strings.HasPrefix(s, ",") {
-			return fmt.Errorf("missing `,` after %q value; tail=%q", ident, s)
-		}
-		s = skipSpace(s[1:])
-	}
-}
-
-func skipSpace(s string) string {
-	for len(s) > 0 && s[0] == ' ' {
-		s = s[1:]
-	}
-	return s
-}
-
-func validateIdent(s string) error {
-	if !identRegexp.MatchString(s) {
-		return fmt.Errorf("invalid identifier %q", s)
-	}
-	return nil
-}
-
-var identRegexp = regexp.MustCompile("^[a-zA-Z_:][a-zA-Z0-9_:]*$")

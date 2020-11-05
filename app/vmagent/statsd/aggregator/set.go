@@ -121,8 +121,8 @@ func (s *Set) GetOrCreateHistogram(key string, row *parser.Row) *Histogram {
 	if nm == nil {
 		// Slow path - create and register missing histogram.
 		name := row.Metric
-		if err := validateMetric(name); err != nil {
-			panic(fmt.Errorf("BUG: invalid metric name %q: %s", name, err))
+		if !validateMetric(name) {
+			panic(fmt.Errorf("BUG: invalid metric name %q", name))
 		}
 		nmNew := &namedMetric{
 			key:    key,
@@ -165,8 +165,8 @@ func (s *Set) GetOrCreateFloatCounter(key string, row *parser.Row) *FloatCounter
 	if nm == nil {
 		// Slow path - create and register missing counter.
 		name := row.Metric
-		if err := validateMetric(name); err != nil {
-			panic(fmt.Errorf("BUG: invalid metric name %q: %s", name, err))
+		if !validateMetric(name) {
+			panic(fmt.Errorf("BUG: invalid metric name %q", name))
 		}
 		nmNew := &namedMetric{
 			key:    key,
@@ -209,8 +209,8 @@ func (s *Set) GetOrCreateGauge(key string, row *parser.Row) *Gauge {
 	if nm == nil {
 		// Slow path - create and register missing gauge.
 		name := row.Metric
-		if err := validateMetric(name); err != nil {
-			panic(fmt.Errorf("BUG: invalid metric name %q: %s", name, err))
+		if !validateMetric(name) {
+			panic(fmt.Errorf("BUG: invalid metric name %q", name))
 		}
 		nmNew := &namedMetric{
 			key:    key,
@@ -271,8 +271,8 @@ func (s *Set) GetOrCreateSummaryExt(key string, row *parser.Row, window time.Dur
 	if nm == nil {
 		// Slow path - create and register missing summary.
 		name := row.Metric
-		if err := validateMetric(name); err != nil {
-			panic(fmt.Errorf("BUG: invalid metric name %q: %s", name, err))
+		if !validateMetric(name) {
+			panic(fmt.Errorf("BUG: invalid metric name %q", name))
 		}
 		sm := newSummary(window, quantiles)
 		nmNew := &namedMetric{
