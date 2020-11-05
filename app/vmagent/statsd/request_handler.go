@@ -72,7 +72,7 @@ func insertRows(rows []parser.Row) error {
 			buffer.WriteString(tag.Value)
 		}
 
-		defaultSet.Insert(buffer.String(), *r)
+		defaultSet.Insert(buffer.String(), r)
 	}
 	return nil
 }

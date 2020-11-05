@@ -7,7 +7,6 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/logger"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/protoparser/common"
 	"github.com/VictoriaMetrics/metrics"
@@ -118,7 +117,8 @@ func (uw *unmarshalWork) reset() {
 
 // Unmarshal implements common.UnmarshalWork
 func (uw *unmarshalWork) Unmarshal() {
-	uw.rows.Unmarshal(bytesutil.ToUnsafeString(uw.reqBuf))
+	// TODO use bytesutil.ToUnsafeString
+	uw.rows.Unmarshal(string(uw.reqBuf))
 	rows := uw.rows.Rows
 	rowsRead.Add(len(rows))
 

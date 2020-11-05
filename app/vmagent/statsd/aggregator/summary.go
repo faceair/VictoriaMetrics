@@ -95,29 +95,37 @@ func (sm *Summary) marshalTo(ctx *common.PushCtx, name string, labels []prompbma
 	if count > 0 {
 		timestamp := int64(fasttime.UnixTimestamp()) * 1e3
 
+		labelsLen := len(ctx.Labels)
+		ctx.Labels = append(ctx.Labels, prompbmarshal.Label{
+			Name:  "__name__",
+			Value: name + "_sum",
+		})
+		ctx.Labels = append(ctx.Labels, labels...)
+
 		ctx.Samples = append(ctx.Samples, prompbmarshal.Sample{
 			Value:     sum,
 			Timestamp: timestamp,
 		})
-		sumLabels := append(labels, prompbmarshal.Label{
-			Name:  "__name__",
-			Value: name + "_sum",
-		})
+
 		ctx.WriteRequest.Timeseries = append(ctx.WriteRequest.Timeseries, prompbmarshal.TimeSeries{
-			Labels:  sumLabels,
+			Labels:  ctx.Labels[labelsLen:],
 			Samples: ctx.Samples[len(ctx.Samples)-1:],
 		})
+
+		labelsLen = len(ctx.Labels)
+		ctx.Labels = append(ctx.Labels, prompbmarshal.Label{
+			Name:  "__name__",
+			Value: name + "_count",
+		})
+		ctx.Labels = append(ctx.Labels, labels...)
 
 		ctx.Samples = append(ctx.Samples, prompbmarshal.Sample{
 			Value:     float64(count),
 			Timestamp: timestamp,
 		})
-		countLabels := append(labels, prompbmarshal.Label{
-			Name:  "__name__",
-			Value: name + "_count",
-		})
+
 		ctx.WriteRequest.Timeseries = append(ctx.WriteRequest.Timeseries, prompbmarshal.TimeSeries{
-			Labels:  countLabels,
+			Labels:  ctx.Labels[labelsLen:],
 			Samples: ctx.Samples[len(ctx.Samples)-1:],
 		})
 	}

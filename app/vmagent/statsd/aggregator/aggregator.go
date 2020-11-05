@@ -31,8 +31,8 @@ func (a *Aggregator) getShard(key string) *Set {
 	return a.shards[xxhash.Sum64String(key)%uint64(len(a.shards))]
 }
 
-func (a *Aggregator) Insert(key string, row parser.Row) {
-	a.getShard(key).Insert(key, &row)
+func (a *Aggregator) Insert(key string, row *parser.Row) {
+	a.getShard(key).Insert(key, row)
 }
 
 func (a *Aggregator) flushLoop() {

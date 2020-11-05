@@ -221,24 +221,23 @@ func (h *Histogram) marshalTo(ctx *common.PushCtx, name string, labels []prompbm
 	timestamp := int64(fasttime.UnixTimestamp()) * 1e3
 	countTotal := uint64(0)
 
-	ctx.Labels = append(ctx.Labels, prompbmarshal.Label{
-		Name:  "__name__",
-		Value: name + "_bucket",
-	})
-	bucketName := ctx.Labels[len(ctx.Labels)-1:]
-
 	h.VisitNonZeroBuckets(func(vmrange string, count uint64) {
+		labelsLen := len(ctx.Labels)
+		ctx.Labels = append(ctx.Labels, prompbmarshal.Label{
+			Name:  "__name__",
+			Value: name + "_bucket",
+		}, prompbmarshal.Label{
+			Name:  "vmrange",
+			Value: vmrange,
+		})
+		ctx.Labels = append(ctx.Labels, labels...)
+
 		ctx.Samples = append(ctx.Samples, prompbmarshal.Sample{
 			Value:     float64(count),
 			Timestamp: timestamp,
 		})
-		bucketLabels := append(labels, bucketName...)
-		bucketLabels = append(bucketLabels, prompbmarshal.Label{
-			Name:  "vmrange",
-			Value: vmrange,
-		})
 		ctx.WriteRequest.Timeseries = append(ctx.WriteRequest.Timeseries, prompbmarshal.TimeSeries{
-			Labels:  bucketLabels,
+			Labels:  ctx.Labels[labelsLen:],
 			Samples: ctx.Samples[len(ctx.Samples)-1:],
 		})
 		countTotal += count
@@ -248,29 +247,38 @@ func (h *Histogram) marshalTo(ctx *common.PushCtx, name string, labels []prompbm
 	}
 
 	sum := h.getSum()
+
+	labelsLen := len(ctx.Labels)
+	ctx.Labels = append(ctx.Labels, prompbmarshal.Label{
+		Name:  "__name__",
+		Value: name + "_sum",
+	})
+	ctx.Labels = append(ctx.Labels, labels...)
+
 	ctx.Samples = append(ctx.Samples, prompbmarshal.Sample{
 		Value:     sum,
 		Timestamp: timestamp,
 	})
-	sumLabels := append(labels, prompbmarshal.Label{
-		Name:  "__name__",
-		Value: name + "_sum",
-	})
+
 	ctx.WriteRequest.Timeseries = append(ctx.WriteRequest.Timeseries, prompbmarshal.TimeSeries{
-		Labels:  sumLabels,
+		Labels:  ctx.Labels[labelsLen:],
 		Samples: ctx.Samples[len(ctx.Samples)-1:],
 	})
+
+	labelsLen = len(ctx.Labels)
+	ctx.Labels = append(ctx.Labels, prompbmarshal.Label{
+		Name:  "__name__",
+		Value: name + "_count",
+	})
+	ctx.Labels = append(ctx.Labels, labels...)
 
 	ctx.Samples = append(ctx.Samples, prompbmarshal.Sample{
 		Value:     float64(countTotal),
 		Timestamp: timestamp,
 	})
-	countLabels := append(labels, prompbmarshal.Label{
-		Name:  "__name__",
-		Value: name + "_count",
-	})
+
 	ctx.WriteRequest.Timeseries = append(ctx.WriteRequest.Timeseries, prompbmarshal.TimeSeries{
-		Labels:  countLabels,
+		Labels:  ctx.Labels[labelsLen:],
 		Samples: ctx.Samples[len(ctx.Samples)-1:],
 	})
 
