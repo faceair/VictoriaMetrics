@@ -2,6 +2,7 @@ package statsd
 
 import (
 	"errors"
+	"flag"
 	"io"
 	"net"
 	"runtime"
@@ -13,6 +14,13 @@ import (
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/logger"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/netutil"
 	"github.com/VictoriaMetrics/metrics"
+)
+
+var (
+	soRcvbuf = flag.Int("statsd.so_rcvbuf", 0, "The number of bytes allocated to StatsD's socket receive buffer (POSIX system only)."+
+		"By default, the system sets this value. If you need to increase the size of this buffer"+
+		"but keep the OS default value the same, you can set StatsD's receive buffer size here."+
+		"The maximum accepted value might change depending on the OS.")
 )
 
 var (
@@ -52,11 +60,10 @@ func MustStart(addr string, insertHandler func(r io.Reader) error) *Server {
 	if err != nil {
 		logger.Fatalf("cannot start UDP statsd server at %q: %s", addr, err)
 	}
-	// TODO allow config
-	//err = lnUDP.SetReadBuffer(64 * 1024 * 1024)
-	//if err != nil {
-	//	logger.Fatalf("cannot start UDP statsd server at %q: %s", addr, err)
-	//}
+	err = lnUDP.SetReadBuffer(*soRcvbuf)
+	if err != nil {
+		logger.Warnf("cannot set UDP statsd server read buffer at %q: %s", addr, err)
+	}
 
 	s := &Server{
 		addr:  addr,

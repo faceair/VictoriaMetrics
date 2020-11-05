@@ -2,8 +2,12 @@ package statsd
 
 import (
 	"bytes"
+	"flag"
+	"fmt"
 	"io"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,7 +16,16 @@ import (
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/writeconcurrencylimiter"
 )
 
-var defaultSet = aggregator.New(64, time.Second*10, []float64{0.5, 0.75, 0.95, 0.99, 0.999})
+var (
+	shardCount    = flag.Int("aggregator.shardCount", 64, "")
+	flushInterval = flag.Duration("aggregator.flushInterval", time.Second*10, "")
+	quantilesStr  = flag.String("aggregator.quantiles", "0.5,0.75,0.95,0.99,0.999", "")
+)
+
+var (
+	defaultSet     *aggregator.Aggregator
+	defaultSetOnce sync.Once
+)
 
 // InsertHandler processes remote write for statsd plaintext protocol.
 //
@@ -24,6 +37,19 @@ func InsertHandler(r io.Reader) error {
 }
 
 func insertRows(rows []parser.Row) error {
+	defaultSetOnce.Do(func() {
+		quantilesStrs := strings.Split(*quantilesStr, ",")
+		quantiles := make([]float64, 0)
+		for _, quantileStr := range quantilesStrs {
+			quantile, err := strconv.ParseFloat(quantileStr, 64)
+			if err != nil {
+				panic(fmt.Errorf("invalid quantile %s, %w", quantileStr, err))
+			}
+			quantiles = append(quantiles, quantile)
+		}
+		defaultSet = aggregator.New(*shardCount, *flushInterval, quantiles)
+	})
+
 	buffer := bufferPool.Get().(*bytes.Buffer)
 	defer bufferPool.Put(buffer)
 
