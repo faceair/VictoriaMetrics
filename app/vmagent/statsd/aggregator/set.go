@@ -2,6 +2,7 @@ package aggregator
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -286,8 +287,7 @@ func (s *Set) GetOrCreateSummaryExt(key string, row *parser.Row, window time.Dur
 		if nm == nil {
 			nm = nmNew
 			s.metrics[key] = nm
-			labels := genRowLabels(row, true)
-			s.registerSummaryQuantilesLocked(key, name, labels, sm)
+			s.registerSummaryQuantilesLocked(key, row, sm)
 		}
 		s.summaries = append(s.summaries, sm)
 		s.mu.Unlock()
@@ -305,18 +305,23 @@ func (s *Set) GetOrCreateSummaryExt(key string, row *parser.Row, window time.Dur
 	return sm
 }
 
-func (s *Set) registerSummaryQuantilesLocked(key, name string, labels []prompbmarshal.Label, sm *Summary) {
+func (s *Set) registerSummaryQuantilesLocked(baseKey string, row *parser.Row, sm *Summary) {
+	name := row.Metric
+	labels := genRowLabels(row, true)
+
 	for i, q := range sm.quantiles {
+		qf := strconv.FormatFloat(q, 'f', -1, 64)
 		qv := &quantileValue{
 			sm:  sm,
 			idx: i,
 		}
-		key := fmt.Sprintf("%s,quantile=%g", key, q)
+
+		key := fmt.Sprintf("%s,quantile:%s", baseKey, qf)
 		nm, ok := s.metrics[key]
 		if !ok {
 			quantileLabels := append(labels, prompbmarshal.Label{
 				Name:  "quantile",
-				Value: fmt.Sprintf("%g", q),
+				Value: qf,
 			})
 			nm = &namedMetric{
 				key:    key,
@@ -330,21 +335,4 @@ func (s *Set) registerSummaryQuantilesLocked(key, name string, labels []prompbma
 			panic(fmt.Errorf("BUG: metric %q is already registered", name))
 		}
 	}
-}
-
-func genRowLabels(row *parser.Row, withName bool) []prompbmarshal.Label {
-	labels := make([]prompbmarshal.Label, 0, len(row.Tags)+1)
-	if withName {
-		labels = append(labels, prompbmarshal.Label{
-			Name:  "__name__",
-			Value: row.Metric,
-		})
-	}
-	for _, tag := range row.Tags {
-		labels = append(labels, prompbmarshal.Label{
-			Name:  tag.Key,
-			Value: tag.Value,
-		})
-	}
-	return labels
 }
