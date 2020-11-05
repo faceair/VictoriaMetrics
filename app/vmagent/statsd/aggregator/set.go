@@ -37,9 +37,9 @@ type metric interface {
 type Set struct {
 	mu        sync.Mutex
 	metrics   map[string]*namedMetric
+	summaries map[string]*namedMetric
 	window    time.Duration
 	quantiles []float64
-	summaries []*Summary
 	buf       []*namedMetric
 }
 
@@ -75,10 +75,11 @@ func (s *Set) Insert(key string, row *parser.Row) {
 
 func (s *Set) Flush() {
 	s.mu.Lock()
-	for _, sm := range s.summaries {
-		sm.updateQuantiles()
-	}
 	s.buf = s.buf[:0]
+	for _, nm := range s.summaries {
+		nm.metric.(*Summary).updateQuantiles()
+		s.buf = append(s.buf, nm)
+	}
 	for _, nm := range s.metrics {
 		s.buf = append(s.buf, nm)
 	}
@@ -90,10 +91,15 @@ func (s *Set) Flush() {
 	for _, nm := range s.buf {
 		if staleness := nm.metric.marshalTo(ctx, nm.name, nm.labels); staleness > 6 {
 			s.mu.Lock()
-			delete(s.metrics, nm.key)
+			if _, ok := nm.metric.(*Summary); ok {
+				delete(s.summaries, nm.key)
+			} else {
+				delete(s.metrics, nm.key)
+			}
 			s.mu.Unlock()
 		}
 	}
+
 	if len(ctx.WriteRequest.Timeseries) == 0 {
 		return
 	}
@@ -267,7 +273,7 @@ func (s *Set) GetOrCreateSummary(key string, row *parser.Row) *Summary {
 // Performance tip: prefer NewSummaryExt instead of GetOrCreateSummaryExt.
 func (s *Set) GetOrCreateSummaryExt(key string, row *parser.Row, window time.Duration, quantiles []float64) *Summary {
 	s.mu.Lock()
-	nm := s.metrics[key]
+	nm := s.summaries[key]
 	s.mu.Unlock()
 	if nm == nil {
 		// Slow path - create and register missing summary.
@@ -283,13 +289,12 @@ func (s *Set) GetOrCreateSummaryExt(key string, row *parser.Row, window time.Dur
 			metric: sm,
 		}
 		s.mu.Lock()
-		nm = s.metrics[key]
+		nm = s.summaries[key]
 		if nm == nil {
 			nm = nmNew
-			s.metrics[key] = nm
+			s.summaries[key] = nm
 			s.registerSummaryQuantilesLocked(key, row, sm)
 		}
-		s.summaries = append(s.summaries, sm)
 		s.mu.Unlock()
 	}
 	sm, ok := nm.metric.(*Summary)

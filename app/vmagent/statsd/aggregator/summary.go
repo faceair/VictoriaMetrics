@@ -17,7 +17,6 @@ type Summary struct {
 	mu sync.Mutex
 
 	curr *histogram.Fast
-	next *histogram.Fast
 
 	quantiles      []float64
 	quantileValues []float64
@@ -36,7 +35,6 @@ func newSummary(window time.Duration, quantiles []float64) *Summary {
 	validateQuantiles(quantiles)
 	sm := &Summary{
 		curr:           histogram.NewFast(),
-		next:           histogram.NewFast(),
 		quantiles:      quantiles,
 		quantileValues: make([]float64, len(quantiles)),
 		window:         window,
@@ -56,7 +54,6 @@ func validateQuantiles(quantiles []float64) {
 func (sm *Summary) Reset() {
 	sm.mu.Lock()
 	sm.curr.Reset()
-	sm.next.Reset()
 	sm.sum = 0
 	sm.count = 0
 	sm.mu.Unlock()
@@ -67,7 +64,6 @@ func (sm *Summary) Update(v float64) {
 	sm.mu.Lock()
 	sm.staleness = 0
 	sm.curr.Update(v)
-	sm.next.Update(v)
 	sm.sum += v
 	sm.count++
 	sm.mu.Unlock()
