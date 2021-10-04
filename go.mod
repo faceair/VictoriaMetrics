@@ -19,7 +19,6 @@ require (
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/snappy v0.0.4
-	github.com/googleapis/gax-go/v2 v2.1.1 // indirect
 	github.com/influxdata/influxdb v1.9.4
 	github.com/klauspost/compress v1.13.6
 	github.com/mattn/go-isatty v0.0.14 // indirect
@@ -39,8 +38,7 @@ require (
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
 	golang.org/x/sys v0.0.0-20210917161153-d61c044b1678
 	golang.org/x/text v0.3.7 // indirect
-	google.golang.org/api v0.57.0
-	google.golang.org/genproto v0.0.0-20210917145530-b395a37504d4 // indirect
+	google.golang.org/api v0.58.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
