@@ -563,8 +563,16 @@ func newMatchFuncForOrSuffixes(orValues []string) (reMatch func(b []byte) bool, 
 			return false
 		}
 	}
+	// Prepare fast string matcher for reMatch.
+	fsm := bytesutil.NewFastStringMatcher(func(s string) bool {
+		return reMatch(bytesutil.ToUnsafeBytes(s))
+	})
+	reMatchFast := func(b []byte) bool {
+		return fsm.Match(bytesutil.ToUnsafeString(b))
+	}
+
 	reCost = uint64(len(orValues)) * literalMatchCost
-	return reMatch, reCost
+	return reMatchFast, reCost
 }
 
 // getOptimizedReMatchFunc tries returning optimized function for matching the given expr.
