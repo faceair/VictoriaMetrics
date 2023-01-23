@@ -15,7 +15,10 @@ import (
 
 const defaultPlaceholder = "value"
 
-var defaultSliceFlagSeparator = ","
+var (
+	defaultSliceFlagSeparator = ","
+	disableSliceFlagSeparator = false
+)
 
 var (
 	slPfx = fmt.Sprintf("sl:::%d:::", time.Now().UTC().UnixNano())
@@ -31,18 +34,20 @@ var BashCompletionFlag Flag = &BoolFlag{
 
 // VersionFlag prints the version for the application
 var VersionFlag Flag = &BoolFlag{
-	Name:    "version",
-	Aliases: []string{"v"},
-	Usage:   "print the version",
+	Name:               "version",
+	Aliases:            []string{"v"},
+	Usage:              "print the version",
+	DisableDefaultText: true,
 }
 
 // HelpFlag prints the help for all commands and subcommands.
 // Set to nil to disable the flag.  The subcommand
 // will still be added unless HideHelp or HideHelpCommand is set to true.
 var HelpFlag Flag = &BoolFlag{
-	Name:    "help",
-	Aliases: []string{"h"},
-	Usage:   "show help",
+	Name:               "help",
+	Aliases:            []string{"h"},
+	Usage:              "show help",
+	DisableDefaultText: true,
 }
 
 // FlagStringer converts a flag definition to a string. This is used by help
@@ -334,8 +339,13 @@ func stringifyFlag(f Flag) string {
 
 	defaultValueString := ""
 
-	if s := df.GetDefaultText(); s != "" {
-		defaultValueString = fmt.Sprintf(formatDefault("%s"), s)
+	// set default text for all flags except bool flags
+	// for bool flags display default text if DisableDefaultText is not
+	// set
+	if bf, ok := f.(*BoolFlag); !ok || !bf.DisableDefaultText {
+		if s := df.GetDefaultText(); s != "" {
+			defaultValueString = fmt.Sprintf(formatDefault("%s"), s)
+		}
 	}
 
 	usageWithDefault := strings.TrimSpace(usage + defaultValueString)
@@ -380,5 +390,9 @@ func flagFromEnvOrFile(envVars []string, filePath string) (value string, fromWhe
 }
 
 func flagSplitMultiValues(val string) []string {
+	if disableSliceFlagSeparator {
+		return []string{val}
+	}
+
 	return strings.Split(val, defaultSliceFlagSeparator)
 }
