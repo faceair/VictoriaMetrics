@@ -18,6 +18,11 @@ import (
 
 var maxRequestSize = flagutil.NewBytes("opentelemetry.maxRequestSize", 64*1024*1024, "The maximum size in bytes of a single OpenTelemetry request")
 
+const (
+	deltaRollupLabelName  = "__vm_rollup"
+	deltaRollupLabelValue = "sum"
+)
+
 // ParseStream parses OpenTelemetry protobuf or json data from r and calls callback for the parsed rows.
 //
 // callback shouldn't hold tss items after returning.
@@ -112,6 +117,14 @@ func (wctx *writeRequestContext) PushSample(mm *pb.MetricMetadata, suffix string
 		Name:  "__name__",
 		Value: metricName,
 	})
+
+	if needsDeltaRollupSumLabel(mm) {
+		wctx.labelsBuf = append(wctx.labelsBuf, prompb.Label{
+			Name:  deltaRollupLabelName,
+			Value: deltaRollupLabelValue,
+		})
+	}
+
 	for _, label := range ls.Labels {
 		name := wctx.sctx.sanitizeLabelName(label.Name)
 		name = wctx.cloneString(name)
@@ -161,6 +174,18 @@ func (wctx *writeRequestContext) concat(a, b string) string {
 	wctx.buf = append(wctx.buf, a...)
 	wctx.buf = append(wctx.buf, b...)
 	return bytesutil.ToUnsafeString(wctx.buf[bufLen:])
+}
+
+func needsDeltaRollupSumLabel(mm *pb.MetricMetadata) bool {
+	if mm == nil || mm.Temporality != pb.MetricTemporalityDelta {
+		return false
+	}
+	switch mm.Type {
+	case prompb.MetricTypeCounter, prompb.MetricTypeGauge, prompb.MetricTypeHistogram:
+		return true
+	default:
+		return false
+	}
 }
 
 func getWriteRequestContext() *writeRequestContext {

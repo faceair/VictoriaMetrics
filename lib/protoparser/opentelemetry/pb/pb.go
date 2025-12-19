@@ -40,12 +40,21 @@ type MetricMetadata struct {
 
 	// Type is metric type
 	Type prompb.MetricType
+
+	// Temporality keeps the original OTEL aggregation_temporality when applicable.
+	Temporality MetricTemporality
+
+	// IsMonotonic mirrors Sum.IsMonotonic for consumers that need to decide counter vs gauge semantics.
+	IsMonotonic bool
 }
 
 func (mm *MetricMetadata) reset() {
 	mm.Name = ""
 	mm.Unit = ""
+	mm.Description = ""
 	mm.Type = 0
+	mm.Temporality = MetricTemporalityUnspecified
+	mm.IsMonotonic = false
 }
 
 // MetricsData represents the corresponding OTEL protobuf message
@@ -53,6 +62,26 @@ func (mm *MetricMetadata) reset() {
 // See https://github.com/open-telemetry/opentelemetry-proto/blob/049d4332834935792fd4dbd392ecd31904f99ba2/opentelemetry/proto/metrics/v1/metrics.proto#L56
 type MetricsData struct {
 	ResourceMetrics []*ResourceMetrics
+}
+
+// MetricTemporality mirrors OTEL aggregation_temporality.
+type MetricTemporality uint8
+
+const (
+	MetricTemporalityUnspecified MetricTemporality = iota
+	MetricTemporalityDelta
+	MetricTemporalityCumulative
+)
+
+func metricTemporalityFromProto(v uint32) MetricTemporality {
+	switch v {
+	case 1:
+		return MetricTemporalityDelta
+	case 2:
+		return MetricTemporalityCumulative
+	default:
+		return MetricTemporalityUnspecified
+	}
 }
 
 // MarshalProtobuf marshals r to protobuf message, appends it to dst and returns the result.
@@ -619,6 +648,8 @@ func (dctx *decoderContext) decodeMetric(src []byte) error {
 	//   repeated opentelemetry.proto.common.v1.KeyValue metadata = 12;
 	// }
 
+	dctx.mm.reset()
+
 	metricName, ok, err := easyproto.GetString(src, 1)
 	if err != nil {
 		return fmt.Errorf("cannot read metric name: %w", err)
@@ -877,10 +908,19 @@ func (dctx *decoderContext) decodeSum(src []byte) (err error) {
 	//   bool is_monotonic = 3;
 	// }
 
+	temporality, ok, err := easyproto.GetUint32(src, 2)
+	if err != nil {
+		return fmt.Errorf("cannot obtain aggregation_temporality: %w", err)
+	}
+	if ok {
+		dctx.mm.Temporality = metricTemporalityFromProto(temporality)
+	}
+
 	isMonotonic, _, err := easyproto.GetBool(src, 3)
 	if err != nil {
 		return fmt.Errorf("cannot obtain isMonotonic: %w", err)
 	}
+	dctx.mm.IsMonotonic = isMonotonic
 	if isMonotonic {
 		dctx.mm.Type = prompb.MetricTypeCounter
 	} else {
@@ -931,6 +971,14 @@ func (dctx *decoderContext) decodeHistogram(src []byte) (err error) {
 	//   repeated HistogramDataPoint data_points = 1;
 	// }
 
+	temporality, ok, err := easyproto.GetUint32(src, 2)
+	if err != nil {
+		return fmt.Errorf("cannot obtain histogram aggregation_temporality: %w", err)
+	}
+	if ok {
+		dctx.mm.Temporality = metricTemporalityFromProto(temporality)
+	}
+
 	dctx.mm.Type = prompb.MetricTypeHistogram
 
 	dctxSnapshot := dctx.getSnapshot()
@@ -976,6 +1024,14 @@ func (dctx *decoderContext) decodeExponentialHistogram(src []byte) (err error) {
 	// message ExponentialHistogram {
 	//   repeated ExponentialHistogramDataPoint data_points = 1;
 	// }
+
+	temporality, ok, err := easyproto.GetUint32(src, 2)
+	if err != nil {
+		return fmt.Errorf("cannot obtain exponential histogram aggregation_temporality: %w", err)
+	}
+	if ok {
+		dctx.mm.Temporality = metricTemporalityFromProto(temporality)
+	}
 
 	dctx.mm.Type = prompb.MetricTypeHistogram
 
